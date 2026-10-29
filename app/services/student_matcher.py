@@ -8,19 +8,15 @@ class PageIdentity:
     message: str
 
 def match_page_identities(page_codes: list[tuple[int, str | None]], known_student_numbers: set[str]) -> list[PageIdentity]:
-    """Match printed student codes only; never infer identity from handwritten names.
-
-    page_codes: (page number, already-decoded QR/barcode/student number). QR/barcode
-    decoding is a separate adapter and deliberately isn't faked here.
-    """
+    """Match decoded codes to the roster; never guess identity from handwriting."""
     seen: dict[str, int] = {}
     output = []
     for page, raw in page_codes:
         code = (raw or '').strip()
         if not code:
-            output.append(PageIdentity(page, None, 'unidentified', 'Kod aşkar edilməyib; müəllim təsdiqi lazımdır.'))
+            output.append(PageIdentity(page, None, 'unidentified', 'Kod aşkarlanmayıb; müəllim təsdiqi lazımdır.'))
         elif code not in known_student_numbers:
-            output.append(PageIdentity(page, code, 'unknown_code', 'Kod qrup siyahısında yoxdur; uyğunlaşdırmanı yoxlayın.'))
+            output.append(PageIdentity(page, code, 'unknown_code', 'Kod qrup siyahısında yoxdur; yoxlayın.'))
         elif code in seen:
             output.append(PageIdentity(page, code, 'duplicate_code', f'Eyni kod {seen[code]}-ci səhifədə də var; təkrar yoxlanmalıdır.'))
         else:
