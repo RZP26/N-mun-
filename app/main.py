@@ -153,6 +153,11 @@ async def upload_files(files: list[UploadFile] = File(...)):
         output.append(item)
     return {'count':len(output),'files':output,'warning':'OCR nəticələri qaralama xarakterlidir. Şübhəli cavablar müəllim tərəfindən təsdiqlənməlidir.'}
 
+@app.get('/api/analysis/summary')
+def analysis_summary():
+    from app.services.assessment_analysis import summarize_results
+    return summarize_results(result_rows())
+
 @app.get('/api/reports/results')
 def result_rows():
     with get_db() as db:
