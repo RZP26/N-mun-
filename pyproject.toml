@@ -1,0 +1,8 @@
+[project]
+name = "pese-qiymetlendirme"
+version = "0.1.0"
+description = "Peşə təhsili üçün elektron qiymətləndirmə prototipi"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
