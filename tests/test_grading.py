@@ -18,3 +18,10 @@ def test_blank_not_marked_wrong():
     result=grade_answers([{'question_no':1,'correct_answer':'A','points':2}],{})
     assert result['blank_count']==1
     assert result['wrong_count']==0
+
+
+def test_open_answer_is_not_auto_graded():
+    result=grade_answers([{'question_no':1,'question_type':'open','correct_answer':'example','points':5}],{'1':'A good detailed answer'})
+    assert result['score']==0
+    assert result['needs_review']==[1]
+    assert result['details'][0]['status']=='review_open_answer'
