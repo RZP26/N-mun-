@@ -138,9 +138,8 @@ async def upload_files(files: list[UploadFile] = File(...)):
         item={'file_id':file_id,'filename':Path(upload.filename or 'upload').name,'detected_type':detected,'bytes':len(content),'status':'yükləndi','pages':1,'ocr':None}
         if detected == 'application/pdf':
             try:
-                from app.services.file_processing import pdf_page_count
                 item['pages']=pdf_page_count(content)
-                item['note']='PDF səhifələri emal üçün ayrılmağa hazırdır. Tələbə uyğunluğu QR/tələbə kodu ilə təsdiqlənməlidir.'
+                item['note']='Səhifələr QR/tələbə kodu əsasında uyğunlaşdırıla bilər; naməlum səhifələr müəllim yoxlamasına göndərilir.'
             except Exception: item['note']='PDF metadatası oxunmadı.'
         else:
             try:
