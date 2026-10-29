@@ -1,10 +1,29 @@
 from io import BytesIO
+from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+
+def _register_az_font():
+    candidates = [('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'), ('C:/Windows/Fonts/arial.ttf', 'C:/Windows/Fonts/arialbd.ttf')]
+    for regular, bold in candidates:
+        if Path(regular).exists():
+            try:
+                pdfmetrics.registerFont(TTFont('AzSans', regular))
+                bold_name = 'AzSans'
+                if Path(bold).exists():
+                    pdfmetrics.registerFont(TTFont('AzSans-Bold', bold))
+                    bold_name = 'AzSans-Bold'
+                return 'AzSans', bold_name
+            except Exception:
+                continue
+    return 'Helvetica', 'Helvetica-Bold'
 
 def make_excel(rows: list[dict]) -> bytes:
     wb = Workbook()
@@ -27,10 +46,13 @@ def make_pdf(rows: list[dict]) -> bytes:
     out = BytesIO()
     doc = SimpleDocTemplate(out, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
     styles = getSampleStyleSheet()
+    regular, bold = _register_az_font()
+    styles['Title'].fontName = bold
+    styles['Normal'].fontName = regular
     story = [Paragraph('Peşə təhsili: qiymətləndirmə hesabatı', styles['Title']), Spacer(1, 12)]
     data = [['Kod','Tələbə','Qiymətləndirmə','Bal','Maks.','Faiz','Düzgün','Səhv','Boş','Yoxlama']]
     for r in rows:
         data.append([str(r.get('student_no','')), str(r.get('student_name','Naməlum'))[:35], str(r.get('assessment_title',''))[:28], str(r.get('score',0)), str(r.get('max_score',0)), f"{r.get('percent',0)}%", str(r.get('correct_count',0)), str(r.get('wrong_count',0)), str(r.get('blank_count',0)), str(r.get('needs_review',''))[:18]])
     table = Table(data, repeatRows=1)
-    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#17365D')),('TEXTCOLOR',(0,0),(-1,0),colors.white),('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('GRID',(0,0),(-1,-1),0.4,colors.grey),('FONTSIZE',(0,0),(-1,-1),8),('VALIGN',(0,0),(-1,-1),'TOP'),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white, colors.HexColor('#F2F6FA')])]))
+    table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#17365D')),('TEXTCOLOR',(0,0),(-1,0),colors.white),('FONTNAME',(0,0),(-1,0),bold),('FONTNAME',(0,1),(-1,-1),regular),('GRID',(0,0),(-1,-1),0.4,colors.grey),('FONTSIZE',(0,0),(-1,-1),8),('VALIGN',(0,0),(-1,-1),'TOP'),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white, colors.HexColor('#F2F6FA')])]))
     story.append(table); doc.build(story); return out.getvalue()
