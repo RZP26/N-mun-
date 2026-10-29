@@ -1,14 +1,14 @@
 from pathlib import Path
 from uuid import uuid4
 import json
-import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from io import BytesIO
 from app.database import init_db, get_db
 from app.schemas import TeacherIn, GroupIn, StudentIn, AssessmentIn, QuestionIn, GradeIn, ReviewIn
-from app.services.file_processing import validate_file, UnsafeUpload, pdf_pages_as_images
+from app.services.file_processing import validate_file, UnsafeUpload, pdf_pages_as_images, pdf_page_count
+from app.services.qr_adapter import decode_student_qr
+from app.services.student_matcher import match_page_identities
 from app.services.grading import grade_answers
 from app.services.ocr import extract_text
 from app.services.reports import make_excel, make_pdf
@@ -198,6 +198,15 @@ def list_pdf_pages(file_id: str):
     if not file_id.isalnum() or len(file_id) != 32: raise HTTPException(400,'Fayl identifikatoru düzgün deyil.')
     candidates=list(STORAGE.glob(file_id+'.pdf'))
     if not candidates: raise HTTPException(404,'PDF tapılmadı.')
-    from app.services.file_processing import pdf_page_count
-    count=pdf_page_count(candidates[0].read_bytes())
-    return {'file_id':file_id,'page_count':count,'pages':[{'page':i+1,'student_id_status':'unidentified','requires_teacher_confirmation':True} for i in range(count)]}
+    try:
+        pages=pdf_pages_as_images(candidates[0].read_bytes(), dpi=120)
+        decoded=[]
+        for i, image in enumerate(pages, start=1):
+            identity=decode_student_qr(image)
+            decoded.append((i, identity.get('student_code')))
+        with get_db() as db:
+            known={r['student_no'] for r in db.execute('SELECT student_no FROM students')}
+        matched=match_page_identities(decoded, known)
+        return {'file_id':file_id,'page_count':len(pages),'pages':[{'page':x.page_number,'student_no':x.student_no,'student_id_status':x.status,'message':x.message,'requires_teacher_confirmation':x.status != 'matched'} for x in matched]}
+    except Exception as exc:
+        raise HTTPException(400,'PDF səhifələri emal edilə bilmədi.') from exc
