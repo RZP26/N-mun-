@@ -162,7 +162,14 @@ def analysis_summary():
 def result_rows():
     with get_db() as db:
         rows=db.execute('''SELECT s.student_no,s.full_name AS student_name,a.title AS assessment_title,r.score,r.max_score,r.percent,r.correct_count,r.wrong_count,r.blank_count,r.needs_review,r.approved,r.created_at FROM results r LEFT JOIN students s ON s.id=r.student_id JOIN assessments a ON a.id=r.assessment_id ORDER BY r.created_at DESC''').fetchall()
-        return [dict(x) for x in rows]
+        output=[dict(x) for x in rows]
+        for row in output:
+            try:
+                pending=json.loads(row.get('needs_review') or '[]')
+                row['needs_review']='; '.join(str(q) for q in pending)
+            except (ValueError, TypeError):
+                row['needs_review']=str(row.get('needs_review') or '')
+        return output
 
 @app.get('/api/reports.xlsx')
 def excel_report():
