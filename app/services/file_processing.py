@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 import fitz
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -10,7 +11,6 @@ class UnsafeUpload(ValueError):
     pass
 
 def validate_file(filename: str, content: bytes) -> str:
-    from pathlib import Path
     ext = Path(filename or '').suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise UnsafeUpload('Yalnız JPG, PNG və PDF qəbul edilir.')
@@ -22,24 +22,22 @@ def validate_file(filename: str, content: bytes) -> str:
         if not content.startswith(b'%PDF-'):
             raise UnsafeUpload('Faylın PDF imzası düzgün deyil.')
         try:
-            doc = fitz.open(stream=content, filetype='pdf')
-            if doc.page_count < 1 or doc.page_count > MAX_PDF_PAGES:
-                raise UnsafeUpload(f'PDF 1-{MAX_PDF_PAGES} səhifə aralığında olmalıdır.')
-            doc.close()
+            with fitz.open(stream=content, filetype='pdf') as doc:
+                if doc.page_count < 1 or doc.page_count > MAX_PDF_PAGES:
+                    raise UnsafeUpload(f'PDF 1-{MAX_PDF_PAGES} səhifə aralığında olmalıdır.')
         except UnsafeUpload:
             raise
         except Exception as exc:
             raise UnsafeUpload('PDF oxunmur və ya zədələnib.') from exc
         return 'application/pdf'
     try:
-        img = Image.open(io.BytesIO(content))
-        img.verify()
+        with Image.open(io.BytesIO(content)) as img:
+            img.verify()
     except (UnidentifiedImageError, OSError) as exc:
         raise UnsafeUpload('Şəkil faylının məzmunu etibarlı deyil.') from exc
-    signature = content[:8]
     if ext in {'.jpg', '.jpeg'} and not content.startswith(b'\xff\xd8\xff'):
         raise UnsafeUpload('JPG fayl imzası düzgün deyil.')
-    if ext == '.png' and signature != b'\x89PNG\r\n\x1a\n':
+    if ext == '.png' and content[:8] != b'\x89PNG\r\n\x1a\n':
         raise UnsafeUpload('PNG fayl imzası düzgün deyil.')
     return 'image/jpeg' if ext in {'.jpg', '.jpeg'} else 'image/png'
 
@@ -48,13 +46,16 @@ def pdf_page_count(content: bytes) -> int:
         return doc.page_count
 
 def pdf_pages_as_images(content: bytes, dpi: int = 180) -> list[Image.Image]:
-    """Render PDF pages locally. OCR/identification should never guess student identity."""
+    """Render PDF pages locally. Student identification must never be guessed."""
+    rendered = []
     with fitz.open(stream=content, filetype='pdf') as doc:
         if len(doc) > MAX_PDF_PAGES:
             raise UnsafeUpload(f'PDF {MAX_PDF_PAGES} səhifədən artıqdır.')
-        return [Image.open(io.BytesIO(page.get_pixmap(dpi=dpi, alpha=False).tobytes('png'))).convert('RGB') for page in doc]
+        for page in doc:
+            pix = page.get_pixmap(dpi=dpi, alpha=False)
+            with Image.open(io.BytesIO(pix.tobytes('png'))) as img:
+                rendered.append(img.convert('RGB').copy())
+    return rendered
 
 def preprocess_image(image: Image.Image) -> Image.Image:
-    image = ImageOps.exif_transpose(image).convert('L')
-    image = ImageOps.autocontrast(image)
-    return image
+    return ImageOps.autocontrast(ImageOps.exif_transpose(image).convert('L'))
