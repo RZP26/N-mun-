@@ -1,0 +1,6 @@
+-r requirements.txt
+# Optional local OCR and QR support; check compatible versions for your OS/Python.
+paddleocr
+paddlepaddle
+opencv-python-headless
+numpy
